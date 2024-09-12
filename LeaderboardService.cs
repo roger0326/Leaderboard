@@ -8,7 +8,7 @@ public class LeaderboardService
         int scoreComparison = b.Score.CompareTo(a.Score);
         return scoreComparison != 0 ? scoreComparison : a.CustomerId.CompareTo(b.CustomerId);
     }));
-    private readonly AsyncReaderWriterLock asyncLock = new AsyncReaderWriterLock();
+    private readonly AsyncReaderWriterLock asyncLock = new();
 
     public async Task<decimal> UpdateScoreAsync(long customerId, decimal scoreChange)
     {

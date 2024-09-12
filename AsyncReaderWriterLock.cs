@@ -1,8 +1,8 @@
 public class AsyncReaderWriterLock
 {
     private const int MaxReaders = 10000; // Can be adjusted based on requirements
-    private readonly SemaphoreSlim _readSemaphore = new SemaphoreSlim(MaxReaders, MaxReaders);
-    private readonly SemaphoreSlim _writeSemaphore = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _readSemaphore = new(MaxReaders, MaxReaders);
+    private readonly SemaphoreSlim _writeSemaphore = new (1, 1);
     private int _readCount = 0;
     private int _writeWaiters = 0;
 
