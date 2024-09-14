@@ -2,12 +2,21 @@
 
 public class SkipListNodeLeaderboardService
 {
-    private readonly ConcurrentDictionary<long, Customer> customers = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, Customer>> customerShards = new();
+    private readonly ConsistentHash<string> consistentHash;
     private readonly SkipList<(decimal Score, long CustomerId)> leaderboard;
     private readonly ReaderWriterLockSlim rwLock = new ReaderWriterLockSlim();
 
-    public SkipListNodeLeaderboardService()
+    public SkipListNodeLeaderboardService(int shardCount = 100, int numberOfReplicas = 100)
     {
+        consistentHash = new ConsistentHash<string>(numberOfReplicas);
+        for (int i = 0; i < shardCount; i++)
+        {
+            string shardId = $"shard-{i}";
+            customerShards[shardId] = new ConcurrentDictionary<long, Customer>();
+            consistentHash.Add(shardId);
+        }
+
         leaderboard = new SkipList<(decimal Score, long CustomerId)>(
             maxLevel: 32,
             probability: 0.5,
@@ -19,8 +28,15 @@ public class SkipListNodeLeaderboardService
         );
     }
 
+    private string GetShardId(long customerId)
+    {
+        return consistentHash.Get(customerId);
+    }
+
     public async Task<decimal> UpdateScoreAsync(long customerId, decimal scoreChange)
     {
+        string shardId = GetShardId(customerId);
+        var customers = customerShards[shardId];
         var customer = customers.GetOrAdd(customerId, _ => new Customer { CustomerId = customerId });
 
         rwLock.EnterWriteLock();
@@ -78,7 +94,8 @@ public class SkipListNodeLeaderboardService
         try
         {
             var neighbors = new List<LeaderboardEntry>();
-
+            string shardId = GetShardId(customerId);
+            var customers = customerShards[shardId];
             if (!customers.TryGetValue(customerId, out var customer))
             {
                 throw new ArgumentException("Customer not found");
