@@ -32,7 +32,10 @@ public class SkipListNodeLeaderboardService
             customer.Score = newScore;
 
             leaderboard.Remove((oldScore, customerId));
-            leaderboard.Insert((newScore, customerId));
+            if (newScore > 0)
+            {
+                leaderboard.Insert((newScore, customerId));
+            }
 
             return newScore;
         }
