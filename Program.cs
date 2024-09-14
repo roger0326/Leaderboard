@@ -81,7 +81,7 @@ app.Use(async (context, next) =>
 
 app.MapGet("/firstrun", async (SkipListNodeLeaderboardService leaderboardService) =>
 {
-    for (int i = 1; i <= 10000; i++)
+    for (int i = 1; i <= 10000000; i++)
     {
         await leaderboardService.UpdateScoreAsync(i, i);
     }

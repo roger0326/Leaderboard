@@ -14,7 +14,7 @@ public class SkipListNode<T>
         SpanMap = new ();
         for (int i = 0; i < levels; i++)
         {
-            SpanMap[i] = 1; // 初始化跨度为1
+            SpanMap[i] = 1; 
         }
         Previous = null;
     }
