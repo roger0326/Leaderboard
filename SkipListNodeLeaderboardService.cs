@@ -94,7 +94,7 @@ public class SkipListNodeLeaderboardService
             var prevNode = currentNode.Previous;
             for (int i = 0; i < prevCount && prevNode != leaderboard.Head; i++)
             {
-                neighbors.Insert(0, new LeaderboardEntry(prevNode.Value.CustomerId, prevNode.Value.Score, currentRank + i + 1));
+                neighbors.Insert(0, new LeaderboardEntry(prevNode.Value.CustomerId, prevNode.Value.Score, currentRank - i - 1));
                 prevNode = prevNode.Previous;
             }
 
@@ -103,7 +103,7 @@ public class SkipListNodeLeaderboardService
             var nextNode = currentNode.Next[0];
             for (int i = 0; i < nextCount && nextNode != leaderboard.Tail; i++)
             {
-                neighbors.Add(new LeaderboardEntry(nextNode.Value.CustomerId, nextNode.Value.Score, currentRank - i - 1));
+                neighbors.Add(new LeaderboardEntry(nextNode.Value.CustomerId, nextNode.Value.Score, currentRank + i + 1));
                 nextNode = nextNode.Next[0];
             }
 

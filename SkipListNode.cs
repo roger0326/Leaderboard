@@ -1,13 +1,21 @@
+using System.Collections.Concurrent;
+
 public class SkipListNode<T>
 {
     public T Value { get; set; }
     public SkipListNode<T>[] Next { get; private set; }
     public SkipListNode<T> Previous { get; set; }
+    public ConcurrentDictionary<int, int> SpanMap { get; private set; }
 
     public SkipListNode(T value, int levels)
     {
         Value = value;
         Next = new SkipListNode<T>[levels];
+        SpanMap = new ();
+        for (int i = 0; i < levels; i++)
+        {
+            SpanMap[i] = 1; // 初始化跨度为1
+        }
         Previous = null;
     }
 }
@@ -32,6 +40,7 @@ public class SkipList<T> where T : IComparable<T>
         for (int i = 0; i < maxLevel; i++)
         {
             Head.Next[i] = Tail;
+            Head.SpanMap[i] = 1;
         }
         this.Tail.Previous = Head;
         this.currentLevel = 1;
@@ -64,11 +73,14 @@ public class SkipList<T> where T : IComparable<T>
     {
         var update = new SkipListNode<T>[maxLevel];
         var current = Head;
+        var rank = new int[maxLevel];
 
         for (int i = currentLevel - 1; i >= 0; i--)
         {
+            rank[i] = i == currentLevel - 1 ? 0 : rank[i + 1];
             while (current.Next[i] != Tail && comparer(current.Next[i].Value, value) < 0)
             {
+                rank[i] += current.SpanMap[i];
                 current = current.Next[i];
             }
             update[i] = current;
@@ -80,7 +92,9 @@ public class SkipList<T> where T : IComparable<T>
         {
             for (int i = currentLevel; i < level; i++)
             {
+                rank[i] = 0;
                 update[i] = Head;
+                Head.SpanMap[i] = count + 1;
             }
             currentLevel = level;
         }
@@ -90,6 +104,14 @@ public class SkipList<T> where T : IComparable<T>
         {
             newNode.Next[i] = update[i].Next[i];
             update[i].Next[i] = newNode;
+
+            newNode.SpanMap[i] = update[i].SpanMap[i] - (rank[0] - rank[i]);
+            update[i].SpanMap[i] = (rank[0] - rank[i]) + 1;
+        }
+
+        for (int i = level; i < currentLevel; i++)
+        {
+            update[i].SpanMap[i]++;
         }
 
         newNode.Previous = update[0];
@@ -128,6 +150,7 @@ public class SkipList<T> where T : IComparable<T>
                 if (update[i].Next[i] != current)
                     break;
                 update[i].Next[i] = current.Next[i];
+                update[i].SpanMap[i] += current.SpanMap[i] - 1;
             }
 
             if (current.Next[0] != Tail)
@@ -170,7 +193,6 @@ public class SkipList<T> where T : IComparable<T>
         return (current != Tail && comparer(current.Value, value) == 0) ? current : null;
     }
 
-
     public int GetRank(T value)
     {
         var current = Head;
@@ -179,32 +201,12 @@ public class SkipList<T> where T : IComparable<T>
         {
             while (current.Next[i] != Tail && comparer(current.Next[i].Value, value) < 0)
             {
+                rank += current.SpanMap[i];
                 current = current.Next[i];
-                rank += 1;//rank += 1 << i;
             }
         }
         current = current.Next[0];
         return (current != Tail && comparer(current.Value, value) == 0) ? rank + 1 : rank;
-
-        //int rank = 0;
-        //var currentNode = Head;
-
-        //for (int i = currentLevel - 1; i >= 0; i--)
-        //{
-        //    while (true)
-        //    {
-        //        if (!currentNode.Next.ContainsKey(i) || currentNode.Next[i] == null)
-        //            break;
-
-        //        var nextNode = currentNode.Next[i];
-        //        if (nextNode.Value >= value)
-        //            break;
-
-        //        rank += currentNode.SpanMap[i];
-        //        currentNode = nextNode;
-        //    }
-        //}
-        //return rank;
     }
 
     public IEnumerable<T> GetAllElements()
