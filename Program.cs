@@ -1,11 +1,12 @@
+using System.Collections.Concurrent;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
-using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddSingleton<LeaderboardService>();
+//builder.Services.AddSingleton<LeaderboardService>();
+builder.Services.AddSingleton<SkipListNodeLeaderboardService>();
 builder.Services.AddSingleton<RateLimitTracker>();
 builder.Services.AddMemoryCache();
 //builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
@@ -78,7 +79,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.MapGet("/firstrun", async (LeaderboardService leaderboardService) =>
+app.MapGet("/firstrun", async (SkipListNodeLeaderboardService leaderboardService) =>
 {
     for (int i = 1; i <= 1000; i++)
     {
@@ -87,7 +88,7 @@ app.MapGet("/firstrun", async (LeaderboardService leaderboardService) =>
     return Results.Ok("Initialization test data completed");
 }).RequireRateLimiting("write");
 
-app.MapPost("/customer/{customerId}/score/{score}", async (long customerId, decimal score, LeaderboardService leaderboardService) =>
+app.MapPost("/customer/{customerId}/score/{score}", async (long customerId, decimal score, SkipListNodeLeaderboardService leaderboardService) =>
 {
     if (customerId <= 0 || score < -1000 || score > 1000)
     {
@@ -98,7 +99,7 @@ app.MapPost("/customer/{customerId}/score/{score}", async (long customerId, deci
     return Results.Ok(newScore);
 }).RequireRateLimiting("write");
 
-app.MapGet("/leaderboard", async (int? start, int? end, LeaderboardService leaderboardService) =>
+app.MapGet("/leaderboard", async (int? start, int? end, SkipListNodeLeaderboardService leaderboardService) =>
 {
     if (start == null || end == null || start > end || start <= 0)
     {
@@ -106,10 +107,10 @@ app.MapGet("/leaderboard", async (int? start, int? end, LeaderboardService leade
     }
 
     var result = await leaderboardService.GetLeaderboardAsync(start.Value, end.Value);
-    return Results.Ok(result);
+    return Results.Json(result);
 }).RequireRateLimiting("read");
 
-app.MapGet("/leaderboard/{customerId}", async (long customerId, int? high, int? low, LeaderboardService leaderboardService) =>
+app.MapGet("/leaderboard/{customerId}", async (long customerId, int? high, int? low, SkipListNodeLeaderboardService leaderboardService) =>
 {
     if (customerId <= 0 || high < 0 || low < 0)
     {
@@ -125,7 +126,7 @@ app.MapGet("/leaderboard/{customerId}", async (long customerId, int? high, int? 
         return Results.NotFound("Customer not found in the leaderboard");
     }
 
-    return Results.Ok(result);
+    return Results.Json(result);
 }).RequireRateLimiting("read");
 
 // Add rate limit stats endpoint

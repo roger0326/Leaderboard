@@ -1,185 +1,78 @@
-﻿//using System.Collections.Concurrent;
-//public class ShardedLeaderboardService
+﻿//public class ShardedLeaderboardService
 //{
-//    private ConcurrentDictionary<long, Customer> customers = new();
-//    private ConcurrentDictionary<long, SortedSet<Customer>> scoreRankings = new();
-//    private readonly ReaderWriterLockSlim leaderboardLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-//    //private ReaderWriterLockSlim leaderboardLock = new();
-//    private readonly int _bucketCount;
+//    private readonly List<LeaderboardShard> _shards;
+//    private readonly int _shardCount;
+//    private readonly decimal _scoreRange;
 
-
-//    public ShardedLeaderboardService(int BucketCount = 1000)
+//    public ShardedLeaderboardService(int shardCount, decimal maxScore)
 //    {
-//        _bucketCount = BucketCount;
-//    }
-
-//    public decimal UpdateScore(long customerId, decimal scoreChange)
-//    {
-//        var customer = customers.GetOrAdd(customerId, new Customer { CustomerID = customerId, Score = 0, Rank = 0 });
-//        leaderboardLock.EnterWriteLock();
-//        try
-//        {
-//            // Remove the customer temporarily to update the score and reinsert
-//            var scoreBucket = GetScoreBucket(customer.Score);
-//            customer.Score += scoreChange;
-//            if (scoreRankings.Count > 0 && scoreRankings.ContainsKey(scoreBucket) && scoreRankings[scoreBucket].Contains(customer))
-//            {
-//                scoreRankings[scoreBucket].Remove(customer);
-//            }
-//            if (customer.Score > 0)
-//            {
-//                scoreBucket = GetScoreBucket(customer.Score);
-//                scoreRankings.TryAdd(scoreBucket, new SortedSet<Customer>());
-//                scoreRankings[scoreBucket].Add(customer);
-//                RecomputeRanks(customer, scoreBucket);
-//            }
-//        }
-//        finally
-//        {
-//            leaderboardLock.ExitWriteLock();
-//        }
-//        return customer.Score;
-//    }
-
-//    private void RecomputeRanks(Customer currentCustomer, long scoreBucket)
-//    {
-//        // RecomputeRanks
-//        var sortedCustomers = customers.Values
-//            .Where(c => c.Score > 0)
-//            .OrderByDescending(c => c.Score)
-//            .ThenBy(c => c.CustomerID)
+//        _shardCount = shardCount;
+//        _scoreRange = maxScore / shardCount;
+//        _shards = Enumerable.Range(0, shardCount)
+//            .Select(_ => new LeaderboardShard())
 //            .ToList();
+//    }
 
-//        for (int i = 0; i < sortedCustomers.Count; i++)
+//    private int GetShardIndex(decimal score)
+//    {
+//        return Math.Min((int)(score / _scoreRange), _shardCount - 1);
+//    }
+
+//    public async Task<decimal> UpdateScoreAsync(long customerId, decimal scoreChange)
+//    {
+//        var oldShardIndex = GetShardIndex(await GetScoreAsync(customerId));
+//        var newScore = await _shards[oldShardIndex].UpdateScoreAsync(customerId, scoreChange);
+//        var newShardIndex = GetShardIndex(newScore);
+
+//        if (oldShardIndex != newShardIndex)
 //        {
-//            sortedCustomers[i].Rank = i + 1;
+//            await _shards[oldShardIndex].RemoveCustomerAsync(customerId);
+//            await _shards[newShardIndex].AddCustomerAsync(customerId, newScore);
 //        }
 
-//        // update scoreRankings
-//        scoreRankings.Clear();
-//        foreach (var customer in sortedCustomers)
-//        {
-//            var bucket = (long)customer.Score;
-//            if (!scoreRankings.ContainsKey(bucket))
+//        return newScore;
+//    }
+
+//    public async Task<List<LeaderboardEntry>> GetLeaderboardAsync(int start, int end)
+//    {
+//        var tasks = _shards.Select(shard => shard.GetLeaderboardAsync(0, end)).ToList();
+//        var results = await Task.WhenAll(tasks);
+//        return results.SelectMany(x => x)
+//            .OrderByDescending(x => x.Score)
+//            .ThenBy(x => x.CustomerId)
+//            .Skip(start - 1)
+//            .Take(end - start + 1)
+//            .Select((entry, index) => new LeaderboardEntry
 //            {
-//                scoreRankings[bucket] = new();
-//            }
-//            scoreRankings[bucket].Add(customer);
-//        }
-
-//        // 
-//        //foreach (var bucket in scoreRankings.Keys)
-//        //{
-//        //    scoreRankings[bucket].Sort();
-//        //}
-
-//        //int rank = 1;
-//        //var newCustomer = currentCustomer;
-//        //foreach (var customer in scoreRankings[scoreBucket])
-//        //{
-//        //    if (currentCustomer.CustomerID == customer.CustomerID)
-//        //    {
-//        //        newCustomer.Rank = rank;
-//        //    }
-//        //    rank++;
-//        //}
-//        //foreach (var key in scoreRankings.Keys)
-//        //{
-//        //    if (key > scoreBucket)
-//        //    {
-//        //        newCustomer.Rank += scoreRankings[key].Count;
-//        //    }
-//        //}
-//        //leaderboardLock.EnterWriteLock();
-//        //try
-//        //{
-//        //    customers.TryUpdate(currentCustomer.CustomerID, newCustomer, currentCustomer);
-//        //}
-//        //finally
-//        //{
-//        //    leaderboardLock.ExitWriteLock();
-//        //}
+//                CustomerId = entry.CustomerId,
+//                Score = entry.Score,
+//                Rank = start + index
+//            })
+//            .ToList();
 //    }
 
-//    private long GetScoreBucket(decimal score)
+//    public async Task<List<LeaderboardEntry>> GetCustomerNeighborsAsync(long customerId, int high, int low)
 //    {
+//        var score = await GetScoreAsync(customerId);
+//        var shardIndex = GetShardIndex(score);
+//        var result = await _shards[shardIndex].GetCustomerNeighborsAsync(customerId, high, low);
 
-//        if (score <= 0)
-//            return 0;
-//        // Shard 
-//        return (long)(score / _bucketCount);
+//        if (result.Count < high + low + 1)
+//        {
+//            // 需要从相邻的分片获取更多数据
+//            // 这里需要实现跨分片查询的逻辑
+//        }
+
+//        return result;
 //    }
 
-//    public List<Customer> GetCustomersByRank(int start, int end)
+//    private async Task<decimal> GetScoreAsync(long customerId)
 //    {
-//        leaderboardLock.EnterReadLock();
-//        try
+//        foreach (var shard in _shards)
 //        {
-//            var result = new List<Customer>();
-
-//            var startCustomer = customers.Values.FirstOrDefault((c) => c.Rank == start);
-//            if (startCustomer == null) return result;
-
-//            var endCustomer = customers.Values.FirstOrDefault((c) => c.Rank == end);
-//            if (startCustomer == null) return result;
-
-//            result = customers.Values.OrderBy((c) => c.Rank).Skip(start - 1).Take(end - start + 1).ToList();
-//            //int currentCount = 0;
-//            //int skipStart = start;
-//            //bool isFirst = true;
-//            //foreach (var key in scoreRankings.Keys.OrderByDescending((i) => i))
-//            //{
-//            //    currentCount += scoreRankings[key].Count;
-//            //    if (skipStart <= currentCount)
-//            //    {
-//            //        if (end <= currentCount)
-//            //        {
-//            //            result.AddRange(scoreRankings[key].Skip(isFirst ? skipStart - 1 : 0).Take(end - skipStart + 1));
-//            //        }
-//            //        else
-//            //        {
-//            //            result.AddRange(scoreRankings[key].Skip(isFirst ? skipStart - 1 : 0).Take(scoreRankings[key].Count));
-//            //        }
-//            //        isFirst = false;
-//            //        skipStart += result.Count;
-//            //    }
-//            //}
-//            return result;
+//            var score = await shard.GetScoreAsync(customerId);
+//            if (score > 0) return score;
 //        }
-//        finally
-//        {
-//            leaderboardLock.ExitReadLock();
-//        }
-//    }
-
-//    public List<Customer> GetCustomersByCustomerId(long customerId, int high, int low)
-//    {
-//        leaderboardLock.EnterReadLock();
-//        try
-//        {
-//            if (customers.Count < 1)
-//            {
-//                return new List<Customer>();
-//            }
-//            var customer = customers[customerId];
-//            if (customer == null) return new List<Customer>();
-
-//            var result = new List<Customer>();
-
-//            return GetCustomersByRank(customer.Rank - high, customer.Rank + low);
-//        }
-//        finally
-//        {
-//            leaderboardLock.ExitReadLock();
-//        }
-//    }
-
-
-//    public void FirstRun(int count)
-//    {
-//        for (int i = 1; i <= count; i++)
-//        {
-//            UpdateScore(i, i);
-//        }
+//        return 0;
 //    }
 //}

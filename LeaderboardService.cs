@@ -2,13 +2,13 @@
 
 public class LeaderboardService
 {
-    private readonly ConcurrentDictionary<long, Customer> customers = new();
+    private readonly ConcurrentDictionary<long, Customer> customers = new(); 
     private readonly SortedDictionary<(decimal Score, long CustomerId), long> leaderboard = new(Comparer<(decimal Score, long CustomerId)>.Create((a, b) =>
     {
         int scoreComparison = b.Score.CompareTo(a.Score);
         return scoreComparison != 0 ? scoreComparison : a.CustomerId.CompareTo(b.CustomerId);
     }));
-    private readonly AsyncReaderWriterLock asyncLock = new();
+    private readonly AsyncReaderWriterLock asyncLock = new(); 
 
     public async Task<decimal> UpdateScoreAsync(long customerId, decimal scoreChange)
     {
@@ -40,12 +40,7 @@ public class LeaderboardService
             int rank = start;
             foreach (var entry in rankedCustomers)
             {
-                result.Add(new LeaderboardEntry
-                {
-                    CustomerId = entry.Value,
-                    Score = entry.Key.Score,
-                    Rank = rank++
-                });
+                result.Add(new LeaderboardEntry(entry.Value, entry.Key.Score, rank++));
             }
             return result;
         }
@@ -75,31 +70,16 @@ public class LeaderboardService
             int higherRankedCount = higherRanked.Count();
             foreach (var entry in higherRanked)
             {
-                result.Add(new LeaderboardEntry
-                {
-                    CustomerId = entry.Value,
-                    Score = entry.Key.Score,
-                    Rank = rank - higherRankedCount
-                });
+                result.Add(new LeaderboardEntry(entry.Value, entry.Key.Score, rank - higherRankedCount));
                 higherRankedCount--;
             }
 
-            result.Add(new LeaderboardEntry
-            {
-                CustomerId = customerEntry.Value,
-                Score = customerEntry.Key.Score,
-                Rank = rank
-            });
+            result.Add(new LeaderboardEntry(customerEntry.Value, customerEntry.Key.Score, rank));
 
             rank++;
             foreach (var entry in lowerRanked)
             {
-                result.Add(new LeaderboardEntry
-                {
-                    CustomerId = entry.Value,
-                    Score = entry.Key.Score,
-                    Rank = rank++
-                });
+                result.Add(new LeaderboardEntry(entry.Value, entry.Key.Score, rank++));
             }
 
             return result;
