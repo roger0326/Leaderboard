@@ -7,7 +7,7 @@ public class SkipListNodeLeaderboardService
     private readonly SkipList<(decimal Score, long CustomerId)> leaderboard;
     private readonly ReaderWriterLockSlim rwLock = new ReaderWriterLockSlim();
 
-    public SkipListNodeLeaderboardService(int shardCount = 100, int numberOfReplicas = 100)
+    public SkipListNodeLeaderboardService(int shardCount = 100, int numberOfReplicas = 2)
     {
         consistentHash = new ConsistentHash<string>(numberOfReplicas);
         for (int i = 0; i < shardCount; i++)
