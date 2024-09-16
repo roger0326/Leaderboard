@@ -31,7 +31,7 @@ public class SkipList<T> where T : IComparable<T>
     private readonly Comparison<T> comparer;
     private int count;
 
-    public SkipList(int maxLevel = 32, double probability = 0.5, Comparison<T> customComparer = null)
+    public SkipList(int maxLevel = 32, double probability = 0.25, Comparison<T> customComparer = null)
     {
         this.maxLevel = maxLevel;
         this.probability = probability;
