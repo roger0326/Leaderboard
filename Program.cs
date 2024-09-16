@@ -21,9 +21,9 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 200,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
+                PermitLimit = RateLimitConstants.ReadPermitLimit,
+                QueueLimit = RateLimitConstants.QueueLimit,
+                Window = TimeSpan.FromMinutes(RateLimitConstants.WindowMinutes)
             }));
 
     // Write operations rate limiting policy
@@ -33,9 +33,9 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 50,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
+                PermitLimit = RateLimitConstants.WritePermitLimit,
+                QueueLimit = RateLimitConstants.QueueLimit,
+                Window = TimeSpan.FromMinutes(RateLimitConstants.WindowMinutes)
             }));
 
     // Custom rate limit handler
@@ -81,7 +81,7 @@ app.Use(async (context, next) =>
 
 app.MapGet("/firstrun", async (SkipListNodeLeaderboardService leaderboardService) =>
 {
-    for (int i = 1; i <= 10000; i++)
+    for (int i = 1; i <= LeaderboardConstants.InitializationCount; i++)
     {
         await leaderboardService.UpdateScoreAsync(i, i);
     }
@@ -90,7 +90,7 @@ app.MapGet("/firstrun", async (SkipListNodeLeaderboardService leaderboardService
 
 app.MapPost("/customer/{customerId}/score/{score}", async (long customerId, decimal score, SkipListNodeLeaderboardService leaderboardService) =>
 {
-    if (customerId <= 0 || score < -1000 || score > 1000)
+    if (customerId <= LeaderboardConstants.MinCustomerId || score < LeaderboardConstants.MinScore || score > LeaderboardConstants.MaxScore)
     {
         return Results.BadRequest("Invalid input parameters");
     }
@@ -101,7 +101,7 @@ app.MapPost("/customer/{customerId}/score/{score}", async (long customerId, deci
 
 app.MapGet("/leaderboard", async (int? start, int? end, SkipListNodeLeaderboardService leaderboardService) =>
 {
-    if (start == null || end == null || start > end || start <= 0)
+    if (start == null || end == null || start > end || start <= LeaderboardConstants.MinRank)
     {
         return Results.BadRequest("Invalid input parameters");
     }
@@ -112,13 +112,13 @@ app.MapGet("/leaderboard", async (int? start, int? end, SkipListNodeLeaderboardS
 
 app.MapGet("/leaderboard/{customerId}", async (long customerId, int? high, int? low, SkipListNodeLeaderboardService leaderboardService) =>
 {
-    if (customerId <= 0 || high < 0 || low < 0)
+    if (customerId <= LeaderboardConstants.MinCustomerId || high < LeaderboardConstants.MinNeighborCount || low < LeaderboardConstants.MinNeighborCount)
     {
         return Results.BadRequest("Invalid input parameters");
     }
 
-    high ??= 0;
-    low ??= 0;
+    high ??= LeaderboardConstants.DefaultNeighborCount;
+    low ??= LeaderboardConstants.DefaultNeighborCount;
 
     var result = await leaderboardService.GetCustomerNeighborsAsync(customerId, high.Value, low.Value);
     if (result.Count == 0)
@@ -136,6 +136,25 @@ app.MapGet("/rate-limit-stats", (RateLimitTracker tracker) =>
 });//.RequireAuthorization(); // only authorized users can access this endpoint
 
 app.Run();
+
+public static class RateLimitConstants
+{
+    public const int ReadPermitLimit = 200;
+    public const int WritePermitLimit = 50;
+    public const int QueueLimit = 0;
+    public const int WindowMinutes = 1;
+}
+
+public static class LeaderboardConstants
+{
+    public const int MinCustomerId = 0;
+    public const decimal MinScore = -1000;
+    public const decimal MaxScore = 1000;
+    public const int InitializationCount = 10000;
+    public const int MinRank = 0;
+    public const int MinNeighborCount = 0;
+    public const int DefaultNeighborCount = 0;
+}
 
 //Further adjust the current limiting parameters and statistical methods according to actual needs
 public class RateLimitTracker
