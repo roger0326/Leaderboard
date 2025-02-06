@@ -27,7 +27,7 @@ dotnet run
 
 GET		"localhost:port/firstrun" :Initialize 10000 pieces of data.
 
-POST	"localhost:port//customer/{customerId}/score/{score}" Add customer scores or Accumulate scores for existing customer.
+POST	"localhost:port/customer/{customerId}/score/{score}" Add customer scores or Accumulate scores for existing customer.
 
 GET		"localhost:port/leaderboard/{customerId}?high=0&low=0" :Get the ranking list of the areas near the current customer.
 
